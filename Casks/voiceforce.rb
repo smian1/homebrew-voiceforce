@@ -1,6 +1,6 @@
 cask "voiceforce" do
-  version "0.17"
-  sha256 "8117de8f188ccab5713ae24e05a557e7b93f62e0bea6ef39632d408281c9f86b"
+  version "0.18"
+  sha256 "69c3fdc1da583994787cbadb58cefe02f18a27fd1f7ded0019dc73f51f193f97"
 
   url "https://voiceforce.studioorange.ai/VoiceForce.dmg"
   name "VoiceForce"
