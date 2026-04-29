@@ -1,0 +1,55 @@
+name: Auto-bump cask
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # hourly
+  workflow_dispatch:
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect current vs. upstream version
+        id: detect
+        run: |
+          set -euo pipefail
+          CASK=Casks/voiceforce.rb
+          CURRENT=$(sed -n 's/.*version "\([^"]*\)".*/\1/p' "$CASK" | head -1)
+          UPSTREAM=$(curl -fsSL https://voiceforce.studioorange.ai/version | python3 -c "import sys, json; print(json.load(sys.stdin)['version'])")
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "upstream=$UPSTREAM" >> "$GITHUB_OUTPUT"
+          if [[ "$CURRENT" == "$UPSTREAM" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute new SHA256 and rewrite cask
+        if: steps.detect.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          CASK=Casks/voiceforce.rb
+          UPSTREAM="${{ steps.detect.outputs.upstream }}"
+          curl -fsSL https://voiceforce.studioorange.ai/VoiceForce.dmg -o /tmp/VoiceForce.dmg
+          SHA=$(sha256sum /tmp/VoiceForce.dmg | awk '{print $1}')
+          python3 - <<PY
+          import re, pathlib
+          p = pathlib.Path("$CASK")
+          t = p.read_text()
+          t = re.sub(r'version "[^"]*"', f'version "$UPSTREAM"', t, count=1)
+          t = re.sub(r'sha256 "[^"]*"', f'sha256 "$SHA"', t, count=1)
+          p.write_text(t)
+          PY
+
+      - name: Commit and push
+        if: steps.detect.outputs.changed == 'true'
+        run: |
+          git config user.name "voiceforce-bot"
+          git config user.email "voiceforce-bot@users.noreply.github.com"
+          git add Casks/voiceforce.rb
+          git commit -m "voiceforce ${{ steps.detect.outputs.current }} -> ${{ steps.detect.outputs.upstream }}"
+          git push
